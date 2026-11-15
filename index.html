@@ -1,0 +1,476 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="機構学（4節回転リンク機構・往復スライダクランク機構）の学習用シミュレータ">
+<title>リンク機構シミュレータ</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+JP:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: drafting-board split — mechanism canvas on the left, a control "title block" on the right; stacks on phones */
+:root{
+  --paper:#f5f6f3; --sheet:#ffffff; --ink:#1d2430; --muted:#5d6675; --rule:#d5d9df; --grid:#e8ebee;
+  --accent:#1f5fa8; --coupler:#7a4fb0; --output:#c2571b; --ground:#3b4350;
+  --ok:#2f7d4f; --ok-bg:#e3f1e8; --warn:#a15c00; --warn-bg:#fbefd9; --bad:#b3261e; --bad-bg:#f8e1df;
+  --font-body:"IBM Plex Sans JP","Hiragino Sans","Noto Sans JP","Yu Gothic",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#14181e; --sheet:#1b2028; --ink:#e4e8ee; --muted:#9aa4b2; --rule:#2e3540; --grid:#232932;
+  --accent:#6ea6ec; --coupler:#b79be0; --output:#f08d55; --ground:#aab3c0;
+  --ok:#7fd1a0; --ok-bg:#1d3326; --warn:#f0b35c; --warn-bg:#3a2c14; --bad:#f2a199; --bad-bg:#3d1f1d; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#14181e; --sheet:#1b2028; --ink:#e4e8ee; --muted:#9aa4b2; --rule:#2e3540; --grid:#232932;
+  --accent:#6ea6ec; --coupler:#b79be0; --output:#f08d55; --ground:#aab3c0;
+  --ok:#7fd1a0; --ok-bg:#1d3326; --warn:#f0b35c; --warn-bg:#3a2c14; --bad:#f2a199; --bad-bg:#3d1f1d; color-scheme:dark}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0}
+[hidden]{display:none!important}
+body{background:var(--paper);color:var(--ink);font-family:var(--font-body);font-size:15px;line-height:1.6;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:1180px;margin:0 auto;display:grid;gap:18px}
+header{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:12px;border-bottom:2px solid var(--ink);padding-bottom:10px}
+h1{font-size:1.55rem;margin:0;letter-spacing:.02em;text-wrap:balance}
+.sub{color:var(--muted);font-size:.88rem;margin:2px 0 0}
+.tabs{display:flex;gap:4px;flex-wrap:wrap}
+.tabs a{font-weight:500;text-decoration:none;color:var(--muted);padding:6px 14px;border:1px solid var(--rule);border-radius:6px 6px 0 0;border-bottom:none;background:transparent}
+.tabs a[aria-current="page"]{color:var(--ink);background:var(--sheet);border-color:var(--ink)}
+.tabs a:focus-visible,button:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.view{display:grid;grid-template-columns:minmax(0,1fr) 340px;gap:18px;align-items:start}
+@media (max-width:860px){.view{grid-template-columns:minmax(0,1fr)}}
+.board{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:10px;min-width:0;display:grid;gap:8px}
+canvas{width:100%;display:block;touch-action:none}
+#fbCanvas{aspect-ratio:4/3}
+#scCanvas{aspect-ratio:2/1}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;font-size:.88rem;color:var(--muted)}
+.legend{display:flex;flex-wrap:wrap;gap:4px 14px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:18px;height:4px;border-radius:2px;display:inline-block}
+.panel{display:grid;gap:14px;min-width:0}
+.card{background:var(--sheet);border:1px solid var(--rule);border-radius:4px;padding:12px 14px;display:grid;gap:10px}
+.card h2{font-size:.78rem;letter-spacing:.08em;color:var(--muted);margin:0;font-weight:700}
+.row{display:grid;grid-template-columns:3.2em minmax(0,1fr) 4.6em;align-items:center;gap:8px}
+.row label{font-family:var(--font-mono);font-weight:500}
+.row output{font-family:var(--font-mono);text-align:right;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--accent)}
+.seg{display:grid;grid-template-columns:repeat(4,1fr);border:1px solid var(--rule);border-radius:6px;overflow:hidden}
+.seg button{font:inherit;font-family:var(--font-mono);border:none;background:transparent;color:var(--ink);padding:6px 0;cursor:pointer;border-right:1px solid var(--rule)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--sheet)}
+select,button.btn{font:inherit;font-size:.9rem;color:var(--ink);background:var(--sheet);border:1px solid var(--rule);border-radius:6px;padding:6px 10px}
+button.btn{cursor:pointer;font-weight:500}
+button.btn.primary{background:var(--ink);color:var(--sheet);border-color:var(--ink)}
+.ctrls{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.chk{display:flex;align-items:center;gap:6px;font-size:.88rem}
+.verdict{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.pill{display:inline-block;font-weight:700;font-size:.82rem;padding:3px 10px;border-radius:999px}
+.pill.ok{color:var(--ok);background:var(--ok-bg)} .pill.warn{color:var(--warn);background:var(--warn-bg)} .pill.bad{color:var(--bad);background:var(--bad-bg)}
+.type{font-size:1.2rem;font-weight:700}
+.ineq{font-family:var(--font-mono);font-size:.9rem;font-variant-numeric:tabular-nums;background:var(--paper);border-radius:4px;padding:8px 10px;overflow-x:auto}
+dl.kv{display:grid;grid-template-columns:auto minmax(0,1fr);gap:4px 12px;margin:0;font-size:.9rem}
+dl.kv dt{color:var(--muted)} dl.kv dd{margin:0;font-family:var(--font-mono);font-variant-numeric:tabular-nums;text-align:right}
+.note{font-size:.84rem;color:var(--muted);margin:0}
+.formula{font-family:var(--font-mono);font-size:.85rem;line-height:1.7;overflow-x:auto;white-space:nowrap}
+.formula b{font-weight:500;color:var(--accent)}
+footer{color:var(--muted);font-size:.8rem;border-top:1px solid var(--rule);padding-top:8px}
+@media (prefers-reduced-motion: reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>リンク機構シミュレータ</h1>
+      <p class="sub">機構学 第5回・第6回　節の長さを変えて，機構の種類と動きを確かめる</p>
+    </div>
+    <nav class="tabs" aria-label="表示する機構">
+      <a href="#fourbar" id="tabFb">4節回転リンク機構</a>
+      <a href="#slider" id="tabSc">往復スライダクランク機構</a>
+    </nav>
+  </header>
+
+  <!-- ================= Four-bar ================= -->
+  <section id="viewFb" class="view" aria-label="4節回転リンク機構">
+    <div class="board">
+      <canvas id="fbCanvas" aria-label="4節回転リンク機構のアニメーション"></canvas>
+      <div class="bar">
+        <div class="ctrls">
+          <button class="btn primary" id="fbPlay" type="button">一時停止</button>
+          <label class="chk" for="fbSpeed">速さ <input type="range" id="fbSpeed" min="0.2" max="3" step="0.1" value="1" style="width:90px"></label>
+          <label class="chk"><input type="checkbox" id="fbLimits" checked> 揺動の端の姿勢</label>
+          <label class="chk"><input type="checkbox" id="fbTrace"> 連接棒の中点の軌跡</label>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span><i class="sw" style="background:var(--accent)"></i>原動節</span>
+          <span><i class="sw" style="background:var(--coupler)"></i>連接棒</span>
+          <span><i class="sw" style="background:var(--output)"></i>従動節</span>
+          <span><i class="sw" style="background:var(--ground)"></i>静止節</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="card">
+        <h2>節の長さ（mm）</h2>
+        <div class="row"><label for="la">a</label><input type="range" id="la" min="10" max="150" step="1" value="25"><output id="oa" for="la">25</output></div>
+        <div class="row"><label for="lb">b</label><input type="range" id="lb" min="10" max="150" step="1" value="70"><output id="ob" for="lb">70</output></div>
+        <div class="row"><label for="lc">c</label><input type="range" id="lc" min="10" max="150" step="1" value="60"><output id="oc" for="lc">60</output></div>
+        <div class="row"><label for="ld">d</label><input type="range" id="ld" min="10" max="150" step="1" value="80"><output id="od" for="ld">80</output></div>
+        <div>
+          <div class="note" style="margin-bottom:6px">固定する節（静止節）</div>
+          <div class="seg" role="group" aria-label="固定する節">
+            <button type="button" data-fix="0" aria-pressed="false">a</button>
+            <button type="button" data-fix="1" aria-pressed="false">b</button>
+            <button type="button" data-fix="2" aria-pressed="false">c</button>
+            <button type="button" data-fix="3" aria-pressed="true">d</button>
+          </div>
+        </div>
+        <label class="note" for="fbPreset">ワークシート・講義資料の例</label>
+        <select id="fbPreset">
+          <option value="25,70,60,80,3">第5回 問4：25, 70, 60, 80（d固定）</option>
+          <option value="30,60,80,110,3">資料04 例題：30, 60, 80, 110（d固定）</option>
+          <option value="20,50,60,70,3">第5回 問2(1)：20, 50, 60, 70</option>
+          <option value="50,60,70,20,3">第5回 問2(2)：50, 60, 70, 20</option>
+          <option value="50,20,60,70,3">第5回 問2(3)：50, 20, 60, 70</option>
+          <option value="40,50,60,90,3">第5回 問2(4)：40, 50, 60, 90</option>
+          <option value="30,60,30,60,3">第5回 問2(5)：30, 60, 30, 60</option>
+        </select>
+      </div>
+
+      <div class="card" aria-live="polite">
+        <h2>グラスホフの判定</h2>
+        <div class="ineq" id="fbIneq"></div>
+        <div class="verdict"><span class="pill" id="fbPill"></span><span class="type" id="fbType"></span></div>
+        <p class="note" id="fbWhy"></p>
+        <dl class="kv">
+          <dt>静止節に対して1回転する節</dt><dd id="fbRot"></dd>
+          <dt>従動節の揺動角 ψ</dt><dd id="fbPsi"></dd>
+          <dt>早戻り比（遅い行程 / 速い行程）</dt><dd id="fbQr"></dd>
+          <dt>原動節の角度 θ</dt><dd id="fbTh"></dd>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= Slider crank ================= -->
+  <section id="viewSc" class="view" aria-label="往復スライダクランク機構" hidden>
+    <div class="board">
+      <canvas id="scCanvas" aria-label="往復スライダクランク機構のアニメーション"></canvas>
+      <div class="bar">
+        <div class="ctrls">
+          <button class="btn primary" id="scPlay" type="button">一時停止</button>
+          <label class="chk" for="scSpeed">速さ <input type="range" id="scSpeed" min="0.2" max="3" step="0.1" value="1" style="width:90px"></label>
+          <label class="chk"><input type="checkbox" id="scYoke"> スコッチヨーク（λ＝0）と比べる</label>
+        </div>
+        <div class="legend" aria-hidden="true">
+          <span><i class="sw" style="background:var(--accent)"></i>厳密式</span>
+          <span><i class="sw" style="background:var(--output)"></i>一次近似</span>
+          <span id="yokeLeg" hidden><i class="sw" style="background:var(--muted)"></i>λ＝0</span>
+        </div>
+      </div>
+      <canvas id="scChart" aria-label="変位・速度・加速度のグラフ" style="aspect-ratio:16/11"></canvas>
+    </div>
+
+    <div class="panel">
+      <div class="card">
+        <h2>条件</h2>
+        <div class="row"><label for="sa">a</label><input type="range" id="sa" min="10" max="60" step="1" value="30"><output id="osa" for="sa">30 mm</output></div>
+        <div class="row"><label for="sb">b</label><input type="range" id="sb" min="40" max="240" step="1" value="120"><output id="osb" for="sb">120 mm</output></div>
+        <div class="row"><label for="sw">ω</label><input type="range" id="sw" min="5" max="100" step="1" value="20"><output id="osw" for="sw">20 rad/s</output></div>
+        <p class="note">λ ＝ a / b ＝ <span id="lam" style="font-family:var(--font-mono)"></span>　（実際の機構の多くは λ ＜ 1/3）</p>
+      </div>
+      <div class="card" aria-live="polite">
+        <h2>θ ＝ <span id="scTh" style="font-family:var(--font-mono)"></span> のときの値</h2>
+        <dl class="kv">
+          <dt></dt><dd style="color:var(--muted)">厳密 ／ 近似</dd>
+          <dt>変位 s [mm]</dt><dd id="vs"></dd>
+          <dt>速度 v [m/s]</dt><dd id="vv"></dd>
+          <dt>加速度 α [m/s²]</dt><dd id="va"></dd>
+          <dt>速度が最大の θ</dt><dd id="vmax"></dd>
+        </dl>
+        <p class="note">θ は上死点（クランクが連接棒と一直線に伸びた位置）から測る。v，α はスライダがクランク軸に近づく向きを正とする。</p>
+      </div>
+      <div class="card">
+        <h2>使っている式</h2>
+        <div class="formula">
+          <b>厳密</b> s ＝ a[1 − cosθ + (1/λ)(1 − √(1 − λ²sin²θ))]<br>
+          <b>近似</b> s ≈ a(1 − cosθ + (λ/2)sin²θ)<br>
+          <b>近似</b> v ≈ aω(sinθ + (λ/2)sin2θ)<br>
+          <b>近似</b> α ≈ aω²(cosθ + λcos2θ)
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>図は節の長さ（mm）に比例して描いています。数値はシミュレーションによる計算値です。</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+const $=id=>document.getElementById(id);
+const css=n=>getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const reduce=window.matchMedia&&matchMedia("(prefers-reduced-motion: reduce)").matches;
+const deg=r=>r*180/Math.PI, rad=d=>d*Math.PI/180;
+
+/* ---------- tabs ---------- */
+function route(){
+  const sc=location.hash==="#slider";
+  $("viewFb").hidden=sc; $("viewSc").hidden=!sc;
+  $("tabFb").setAttribute("aria-current",sc?"false":"page");
+  $("tabSc").setAttribute("aria-current",sc?"page":"false");
+  resize();
+}
+window.addEventListener("hashchange",route);
+
+/* ---------- canvas helpers ---------- */
+function fit(cv){
+  const r=cv.getBoundingClientRect(), dpr=window.devicePixelRatio||1;
+  const w=Math.max(1,Math.round(r.width*dpr)), h=Math.max(1,Math.round(r.height*dpr));
+  if(cv.width!==w||cv.height!==h){cv.width=w;cv.height=h;}
+  const ctx=cv.getContext("2d"); ctx.setTransform(dpr,0,0,dpr,0,0); return {ctx,w:r.width,h:r.height};
+}
+function pinDraw(ctx,x,y,r){ctx.beginPath();ctx.arc(x,y,r,0,2*Math.PI);ctx.fillStyle=css("--sheet");ctx.fill();ctx.lineWidth=1.6;ctx.strokeStyle=css("--ink");ctx.stroke();}
+function groundPivot(ctx,x,y,s){
+  ctx.strokeStyle=css("--ground");ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(x,y+s*0.9);ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-s*1.4,y+s*0.9);ctx.lineTo(x+s*1.4,y+s*0.9);ctx.stroke();
+  for(let i=-1.3;i<1.4;i+=0.45){ctx.beginPath();ctx.moveTo(x+i*s,y+s*0.9);ctx.lineTo(x+i*s-s*0.45,y+s*1.45);ctx.stroke();}
+}
+function bar(ctx,p,q,col,w){ctx.strokeStyle=col;ctx.lineWidth=w;ctx.lineCap="round";ctx.beginPath();ctx.moveTo(p[0],p[1]);ctx.lineTo(q[0],q[1]);ctx.stroke();}
+function label(ctx,t,x,y,col,size,font){ctx.fillStyle=col;ctx.font=`${size||13}px ${font||css("--font-body")}`;ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(t,x,y);}
+
+/* ================= FOUR-BAR ================= */
+const NAMES=["a","b","c","d"];
+const fb={L:[25,70,60,80],fix:3,theta:0,dir:1,playing:!reduce,speed:1,trace:[],cfg:null};
+
+function circleC(B,D,q,r,prev){ // C with |C-B|=q, |C-D|=r ; pick branch closest to prev (or upper)
+  const dx=D[0]-B[0],dy=D[1]-B[1],L=Math.hypot(dx,dy);
+  if(L>q+r+1e-9||L<Math.abs(q-r)-1e-9||L<1e-9) return null;
+  const x=(q*q-r*r+L*L)/(2*L), h=Math.sqrt(Math.max(q*q-x*x,0)), ux=dx/L,uy=dy/L;
+  const c1=[B[0]+x*ux-h*uy,B[1]+x*uy+h*ux], c2=[B[0]+x*ux+h*uy,B[1]+x*uy-h*ux];
+  if(!prev) return c1[1]>=c2[1]?c1:c2;
+  return Math.hypot(c1[0]-prev[0],c1[1]-prev[1])<=Math.hypot(c2[0]-prev[0],c2[1]-prev[1])?c1:c2;
+}
+function classify(L,fix){
+  const sorted=[...L].sort((x,y)=>x-y), s=sorted[0], l=sorted[3], pq=sorted[1]+sorted[2];
+  const sIdx=L.indexOf(s);
+  const grashof=s+l<=pq+1e-9, equal=Math.abs(s+l-pq)<1e-9;
+  const parallel=Math.abs(L[0]-L[2])<1e-9&&Math.abs(L[1]-L[3])<1e-9;
+  let type,why,pill,rot=[];
+  const adj=[(fix+1)%4,(fix+3)%4], opp=(fix+2)%4;
+  if(parallel){type="平行クランク機構";pill="warn";why="向かい合う節の長さが等しく（a＝c，b＝d），等号でグラスホフの定理を満たす。";rot=adj;}
+  else if(!grashof){type="両てこ機構（非グラスホフ）";pill="bad";why="最短＋最長が残り2つの和より大きいので，どの節を固定しても1回転できる節はない。";}
+  else if(fix===sIdx){type="両クランク機構";pill="ok";why=`最も短い節 ${NAMES[sIdx]} が固定されている。`;rot=adj;}
+  else if(adj.includes(sIdx)){type="てこクランク機構";pill="ok";why=`最も短い節 ${NAMES[sIdx]} が固定節の隣にある。`;rot=[sIdx];}
+  else {type="両てこ機構（グラスホフ）";pill="warn";why=`最も短い節 ${NAMES[sIdx]} が固定節の向かいにある。${NAMES[sIdx]} は連接棒として他の節に対して1回転する。`;}
+  if(equal&&!parallel&&grashof) why+=" 等号が成り立つので，途中で節が一直線に並ぶ姿勢（思案点）がある。";
+  return {s,l,pq,sIdx,grashof,equal,parallel,type,why,pill,rot};
+}
+function setupFourbar(){
+  const L=fb.L, fix=fb.fix, info=classify(L,fix);
+  const n1=(fix+1)%4,n2=(fix+2)%4,n3=(fix+3)%4;
+  let inp=n1,cou=n2,out=n3;
+  if(info.rot.length===1&&info.rot[0]===n3){inp=n3;cou=n2;out=n1;}
+  const g=L[fix],p=L[inp],q=L[cou],r=L[out];
+  const A=[0,0],D=[g,0];
+  // sweep input angle
+  const N=1440, ok=new Array(N), outAng=new Array(N);
+  let prev=null;
+  for(let i=0;i<N;i++){
+    const t=i/N*2*Math.PI, B=[p*Math.cos(t),p*Math.sin(t)], C=circleC(B,D,q,r,prev);
+    ok[i]=!!C; if(C){outAng[i]=Math.atan2(C[1]-D[1],C[0]-D[0]); prev=C;} else prev=null;
+  }
+  const full=ok.every(Boolean);
+  // feasible interval containing a start angle
+  let start=0;
+  if(!full){ let best=-1,bi=0,run=0,runStart=0;
+    for(let k=0;k<2*N;k++){const i=k%N; if(ok[i]){if(run===0)runStart=k;run++; if(run>best&&run<=N){best=run;bi=runStart;}} else run=0;}
+    start=(bi+Math.floor(best/2))%N; }
+  const cfg={L,fix,info,inp,cou,out,g,p,q,r,A,D,full,ok,N};
+  // rocking angle & quick return for crank input
+  if(full){
+    let un=[outAng[0]]; for(let i=1;i<N;i++){let dA=outAng[i]-outAng[i-1]; if(dA>Math.PI)dA-=2*Math.PI; if(dA<-Math.PI)dA+=2*Math.PI; un.push(un[i-1]+dA);}
+    let mn=Infinity,mx=-Infinity,imn=0,imx=0; un.forEach((v,i)=>{if(v<mn){mn=v;imn=i;} if(v>mx){mx=v;imx=i;}});
+    const range=mx-mn;
+    cfg.outFull=Math.abs(un[N-1]-un[0])>Math.PI; // output rotates
+    if(!cfg.outFull){ cfg.psi=deg(range); const d1=((imx-imn+N)%N)/N*360; cfg.qr=[d1,360-d1]; cfg.limits=[imn/N*2*Math.PI,imx/N*2*Math.PI]; }
+  } else {
+    cfg.psi=null;
+  }
+  cfg.theta0=start/N*2*Math.PI;
+  fb.cfg=cfg; fb.theta=cfg.theta0; fb.dir=1; fb.prevC=null; fb.trace=[];
+  renderFbInfo();
+}
+function fbPose(t){
+  const c=fb.cfg, B=[c.p*Math.cos(t),c.p*Math.sin(t)], C=circleC(B,c.D,c.q,c.r,fb.prevC); return {B,C};
+}
+function renderFbInfo(){
+  const c=fb.cfg,i=c.info,L=c.L;
+  const sN=NAMES[i.sIdx], lN=NAMES[L.indexOf(i.l)];
+  const others=NAMES.filter((_,k)=>k!==i.sIdx&&k!==L.indexOf(i.l));
+  const rel=i.s+i.l<i.pq-1e-9?"＜":(Math.abs(i.s+i.l-i.pq)<1e-9?"＝":"＞");
+  $("fbIneq").textContent=`最短 ${sN}＋最長 ${lN} ＝ ${i.s}＋${i.l} ＝ ${i.s+i.l}  ${rel}  ${others.join("＋")} ＝ ${i.pq}`;
+  const pill=$("fbPill"); pill.className="pill "+i.pill; pill.textContent=i.grashof?"グラスホフ機構":"非グラスホフ";
+  $("fbType").textContent=i.type; $("fbWhy").textContent=i.why;
+  $("fbRot").textContent=i.rot.length?i.rot.map(k=>NAMES[k]).join("，"):"なし";
+  $("fbPsi").textContent=(c.full&&!c.outFull&&c.psi!=null)?c.psi.toFixed(1)+"°":"—";
+  $("fbQr").textContent=(c.full&&!c.outFull&&c.qr)?`${Math.max(...c.qr).toFixed(1)}° / ${Math.min(...c.qr).toFixed(1)}° ＝ ${(Math.max(...c.qr)/Math.min(...c.qr)).toFixed(3)}`:"—";
+  document.querySelectorAll(".seg button").forEach(b=>b.setAttribute("aria-pressed",String(+b.dataset.fix===fb.fix)));
+}
+function drawFb(){
+  const {ctx,w,h}=fit($("fbCanvas")); const c=fb.cfg;
+  ctx.clearRect(0,0,w,h);
+  // world bounds
+  const x0=Math.min(-c.p,c.g-c.r)-6, x1=Math.max(c.p,c.g+c.r)+6, R=Math.max(c.p,c.r)+6;
+  const sc=Math.min((w-40)/(x1-x0),(h-40)/(2*R));
+  const ox=(w-(x1-x0)*sc)/2-x0*sc, oy=h/2;
+  const T=p=>[ox+p[0]*sc,oy-p[1]*sc];
+  // grid
+  ctx.strokeStyle=css("--grid");ctx.lineWidth=1;
+  const step=10*sc; for(let x=ox%step;x<w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,h);ctx.stroke();}
+  for(let y=oy%step;y<h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  // paths
+  ctx.setLineDash([4,4]);ctx.strokeStyle=css("--muted");ctx.lineWidth=1;
+  ctx.beginPath();ctx.arc(T(c.A)[0],T(c.A)[1],c.p*sc,0,2*Math.PI);ctx.stroke();
+  ctx.beginPath();ctx.arc(T(c.D)[0],T(c.D)[1],c.r*sc,0,2*Math.PI);ctx.stroke();ctx.setLineDash([]);
+  // limit positions
+  if($("fbLimits").checked&&c.limits){
+    let pv=null; c.limits.forEach(t=>{const B=[c.p*Math.cos(t),c.p*Math.sin(t)],C=circleC(B,c.D,c.q,c.r,fb.prevC);
+      if(!C)return; ctx.globalAlpha=0.35; bar(ctx,T(c.A),T(B),css("--accent"),3); bar(ctx,T(B),T(C),css("--coupler"),3); bar(ctx,T(C),T(c.D),css("--output"),3); ctx.globalAlpha=1;});
+  }
+  // trace
+  if(fb.trace.length>1&&$("fbTrace").checked){ctx.strokeStyle=css("--coupler");ctx.lineWidth=1.4;ctx.beginPath();fb.trace.forEach((p,i)=>{const q=T(p);i?ctx.lineTo(q[0],q[1]):ctx.moveTo(q[0],q[1]);});ctx.stroke();}
+  const pose=fbPose(fb.theta); if(!pose.C) return;
+  fb.prevC=pose.C;
+  const A=T(c.A),D=T(c.D),B=T(pose.B),C=T(pose.C);
+  // ground
+  bar(ctx,A,D,css("--ground"),5);
+  const ps=Math.max(6,Math.min(12,sc*4));
+  groundPivot(ctx,A[0],A[1],ps); groundPivot(ctx,D[0],D[1],ps);
+  bar(ctx,A,B,css("--accent"),6); bar(ctx,B,C,css("--coupler"),6); bar(ctx,C,D,css("--output"),6);
+  [A,B,C,D].forEach(p=>pinDraw(ctx,p[0],p[1],5));
+  const mid=(p,q)=>[(p[0]+q[0])/2,(p[1]+q[1])/2], off=(p,q,k)=>{const dx=q[0]-p[0],dy=q[1]-p[1],L=Math.hypot(dx,dy)||1;return [-dy/L*k,dx/L*k];};
+  const put=(p,q,t,col)=>{const m=mid(p,q),o=off(p,q,14);label(ctx,t,m[0]+o[0],m[1]+o[1],col,15,css("--font-mono"));};
+  put(A,B,NAMES[c.inp],css("--accent")); put(B,C,NAMES[c.cou],css("--coupler")); put(C,D,NAMES[c.out],css("--output")); put(D,A,NAMES[c.fix],css("--ground"));
+  $("fbTh").textContent=((deg(fb.theta)%360+360)%360).toFixed(0)+"°";
+}
+function stepFb(dt){
+  const c=fb.cfg, w=1.2*fb.speed;
+  let t=fb.theta+fb.dir*w*dt;
+  if(!c.full){ const i=Math.round(((t%(2*Math.PI))+2*Math.PI)%(2*Math.PI)/(2*Math.PI)*c.N)%c.N;
+    if(!c.ok[i]){fb.dir*=-1;t=fb.theta;} }
+  fb.theta=t;
+  if($("fbTrace").checked){const p=fbPose(t); if(p.C){fb.trace.push([(p.B[0]+p.C[0])/2,(p.B[1]+p.C[1])/2]); if(fb.trace.length>900)fb.trace.shift();}}
+}
+function readFb(){fb.L=["la","lb","lc","ld"].map(id=>+$(id).value);["oa","ob","oc","od"].forEach((id,k)=>$(id).textContent=fb.L[k]);setupFourbar();}
+["la","lb","lc","ld"].forEach(id=>$(id).addEventListener("input",readFb));
+document.querySelectorAll(".seg button").forEach(b=>b.addEventListener("click",()=>{fb.fix=+b.dataset.fix;setupFourbar();}));
+$("fbPreset").addEventListener("change",e=>{const v=e.target.value.split(",").map(Number);["la","lb","lc","ld"].forEach((id,k)=>$(id).value=v[k]);fb.fix=v[4];readFb();});
+$("fbPlay").addEventListener("click",()=>{fb.playing=!fb.playing;$("fbPlay").textContent=fb.playing?"一時停止":"再生";});
+$("fbSpeed").addEventListener("input",e=>fb.speed=+e.target.value);
+$("fbTrace").addEventListener("change",()=>{fb.trace=[];});
+
+/* ================= SLIDER CRANK ================= */
+const sc={a:30,b:120,w:20,theta:0,playing:!reduce,speed:1};
+function scVals(th){
+  const a=sc.a,lam=sc.a/sc.b,w=sc.w,s2=Math.sin(th)**2,R=Math.sqrt(1-lam*lam*s2);
+  const s=a*(1-Math.cos(th)+(1-R)/lam);
+  const v=a/1000*w*(Math.sin(th)+lam*Math.sin(2*th)/(2*R));
+  const al=a/1000*w*w*(Math.cos(th)+lam*(Math.cos(2*th)+lam*lam*s2*s2)/(R*R*R));
+  const sA=a*(1-Math.cos(th)+lam/2*s2), vA=a/1000*w*(Math.sin(th)+lam/2*Math.sin(2*th)), aA=a/1000*w*w*(Math.cos(th)+lam*Math.cos(2*th));
+  const sY=a*(1-Math.cos(th)), vY=a/1000*w*Math.sin(th), aY=a/1000*w*w*Math.cos(th);
+  return {s,v,al,sA,vA,aA,sY,vY,aY};
+}
+function vmaxAngles(){
+  let best=-Infinity,bt=0; for(let i=0;i<=1800;i++){const t=rad(i/10); const v=scVals(t).v; if(v>best){best=v;bt=i/10;}}
+  const lam=sc.a/sc.b; // approx: cos t + lam cos2t = 0 -> 2lam c^2 + c - lam = 0
+  const cA=(-1+Math.sqrt(1+8*lam*lam))/(4*lam); const tA=deg(Math.acos(cA));
+  return [bt,tA];
+}
+function drawSc(){
+  const {ctx,w,h}=fit($("scCanvas")); ctx.clearRect(0,0,w,h);
+  const a=sc.a,b=sc.b,th=sc.theta;
+  const span=2*a+b+30, s=Math.min((w-30)/span,(h-30)/(2*a+30));
+  const O=[20+(a+10)*s,h/2+4];
+  const T=p=>[O[0]+p[0]*s,O[1]-p[1]*s];
+  const B=[a*Math.cos(th),a*Math.sin(th)], C=[a*Math.cos(th)+Math.sqrt(b*b-(a*Math.sin(th))**2),0];
+  // guide
+  const gy=O[1]+9; ctx.strokeStyle=css("--ground");ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(T([b-a-12,0])[0],gy);ctx.lineTo(T([a+b+18,0])[0],gy);ctx.stroke();
+  ctx.lineWidth=1;for(let x=T([b-a-10,0])[0];x<T([a+b+18,0])[0];x+=8){ctx.beginPath();ctx.moveTo(x,gy);ctx.lineTo(x-6,gy+7);ctx.stroke();}
+  // TDC/BDC marks
+  [[a+b,"上死点"],[b-a,"下死点"]].forEach(([x,t])=>{const p=T([x,0]);ctx.setLineDash([3,3]);ctx.strokeStyle=css("--muted");ctx.beginPath();ctx.moveTo(p[0],p[1]-26);ctx.lineTo(p[0],gy);ctx.stroke();ctx.setLineDash([]);label(ctx,t,p[0],p[1]-34,css("--muted"),11);});
+  // crank circle
+  ctx.setLineDash([4,4]);ctx.strokeStyle=css("--muted");ctx.beginPath();ctx.arc(O[0],O[1],a*s,0,2*Math.PI);ctx.stroke();ctx.setLineDash([]);
+  // s indicator
+  const pT=T([a+b,0]),pC=T(C); ctx.strokeStyle=css("--output");ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(pC[0],O[1]+26);ctx.lineTo(pT[0],O[1]+26);ctx.stroke();
+  label(ctx,"s",(pC[0]+pT[0])/2,O[1]+36,css("--output"),13,css("--font-mono"));
+  const bw=Math.max(26,14*s/1.2), bh=18; ctx.fillStyle=css("--grid");ctx.strokeStyle=css("--ink");ctx.lineWidth=1.5;
+  ctx.fillRect(pC[0]-bw/2,O[1]-bh/2,bw,bh);ctx.strokeRect(pC[0]-bw/2,O[1]-bh/2,bw,bh);
+  bar(ctx,O,T(B),css("--accent"),6); bar(ctx,T(B),pC,css("--coupler"),6);
+  groundPivot(ctx,O[0],O[1],8); [O,T(B),pC].forEach(p=>pinDraw(ctx,p[0],p[1],5));
+  label(ctx,"θ",O[0]+18,O[1]-12,css("--accent"),13,css("--font-mono"));
+}
+function drawChart(){
+  const {ctx,w,h}=fit($("scChart")); ctx.clearRect(0,0,w,h);
+  const rows=[["変位 s [mm]","s","sA","sY"],["速度 v [m/s]","v","vA","vY"],["加速度 α [m/s²]","al","aA","aY"]];
+  const pad={l:52,r:12,t:8,b:22}, gap=14, ph=(h-pad.t-pad.b-gap*2)/3, pw=w-pad.l-pad.r;
+  const data=[]; for(let i=0;i<=360;i+=2) data.push(scVals(rad(i)));
+  const yoke=$("scYoke").checked;
+  rows.forEach((r,k)=>{
+    const y0=pad.t+k*(ph+gap);
+    let vals=data.flatMap(d=>[d[r[1]],d[r[2]]].concat(yoke?[d[r[3]]]:[]));
+    let mn=Math.min(0,...vals),mx=Math.max(...vals); const m=(mx-mn)*0.08||1; mn-=m;mx+=m;
+    const X=t=>pad.l+t/360*pw, Y=v=>y0+ph-(v-mn)/(mx-mn)*ph;
+    ctx.strokeStyle=css("--rule");ctx.lineWidth=1;ctx.strokeRect(pad.l,y0,pw,ph);
+    ctx.strokeStyle=css("--grid");[90,180,270].forEach(t=>{ctx.beginPath();ctx.moveTo(X(t),y0);ctx.lineTo(X(t),y0+ph);ctx.stroke();});
+    if(mn<0&&mx>0){ctx.strokeStyle=css("--muted");ctx.beginPath();ctx.moveTo(pad.l,Y(0));ctx.lineTo(pad.l+pw,Y(0));ctx.stroke();}
+    const line=(key,col,dash,lw)=>{ctx.setLineDash(dash);ctx.strokeStyle=col;ctx.lineWidth=lw;ctx.beginPath();data.forEach((d,i)=>{const x=X(i*2),y=Y(d[key]);i?ctx.lineTo(x,y):ctx.moveTo(x,y);});ctx.stroke();ctx.setLineDash([]);};
+    if(yoke) line(r[3],css("--muted"),[2,3],1.3);
+    line(r[2],css("--output"),[6,4],1.8); line(r[1],css("--accent"),[],2.2);
+    ctx.fillStyle=css("--muted");ctx.font=`11px ${css("--font-mono")}`;ctx.textAlign="right";ctx.textBaseline="middle";
+    [mx-m,mn+m].forEach(v=>ctx.fillText(Math.abs(v)<10?v.toFixed(2):v.toFixed(0),pad.l-6,Y(v)));
+    ctx.textAlign="left";ctx.fillStyle=css("--ink");ctx.font=`12px ${css("--font-body")}`;ctx.fillText(r[0],pad.l+6,y0+12);
+    const tdeg=(deg(sc.theta)%360+360)%360; ctx.strokeStyle=css("--ink");ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(X(tdeg),y0);ctx.lineTo(X(tdeg),y0+ph);ctx.stroke();
+    if(k===2){ctx.fillStyle=css("--muted");ctx.font=`11px ${css("--font-mono")}`;ctx.textAlign="center";[0,90,180,270,360].forEach(t=>ctx.fillText(t+"°",X(t),y0+ph+12));}
+  });
+}
+function renderScInfo(){
+  const t=(deg(sc.theta)%360+360)%360, d=scVals(sc.theta);
+  $("scTh").textContent=t.toFixed(0)+"°";
+  $("vs").textContent=`${d.s.toFixed(2)} ／ ${d.sA.toFixed(2)}`;
+  $("vv").textContent=`${d.v.toFixed(3)} ／ ${d.vA.toFixed(3)}`;
+  $("va").textContent=`${d.al.toFixed(2)} ／ ${d.aA.toFixed(2)}`;
+}
+function readSc(){
+  sc.a=+$("sa").value; sc.b=Math.max(+$("sb").value,sc.a+1); sc.w=+$("sw").value;
+  $("osa").textContent=sc.a+" mm";$("osb").textContent=sc.b+" mm";$("osw").textContent=sc.w+" rad/s";
+  $("lam").textContent=(sc.a/sc.b).toFixed(3);
+  const [e,ap]=vmaxAngles(); $("vmax").textContent=`${e.toFixed(1)}° ／ ${ap.toFixed(1)}°`;
+  $("yokeLeg").hidden=!$("scYoke").checked;
+}
+["sa","sb","sw"].forEach(id=>$(id).addEventListener("input",readSc));
+$("scYoke").addEventListener("change",readSc);
+$("scPlay").addEventListener("click",()=>{sc.playing=!sc.playing;$("scPlay").textContent=sc.playing?"一時停止":"再生";});
+$("scSpeed").addEventListener("input",e=>sc.speed=+e.target.value);
+$("scChart").addEventListener("pointerdown",e=>{const r=e.currentTarget.getBoundingClientRect();const x=(e.clientX-r.left-52)/(r.width-64);if(x>=0&&x<=1){sc.theta=rad(x*360);sc.playing=false;$("scPlay").textContent="再生";}});
+
+/* ---------- loop ---------- */
+let last=performance.now();
+function frame(now){
+  const dt=Math.min(0.05,(now-last)/1000); last=now;
+  if(!$("viewFb").hidden){ if(fb.playing) stepFb(dt); drawFb(); }
+  else { if(sc.playing) sc.theta+=1.0*sc.speed*dt; drawSc(); drawChart(); renderScInfo(); }
+  requestAnimationFrame(frame);
+}
+function resize(){ if(!$("viewFb").hidden) drawFb(); else {drawSc();drawChart();} }
+window.addEventListener("resize",resize);
+if(reduce){$("fbPlay").textContent="再生";$("scPlay").textContent="再生";}
+readFb(); readSc(); route(); requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
